@@ -13,7 +13,7 @@ export class MyStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    // VPC
+    // VPC Default
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
 
     // EC2 Instance
