@@ -8,7 +8,7 @@ export class MyStack extends cdk.Stack {
 
     // S3 Bucket
     new s3.Bucket(this, 'MyBucket', {
-      bucketName: 'my-app-bucket',
+      bucketName: 'my-app-bucket-${this.account}-${this.region}',
       versioned: true,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
