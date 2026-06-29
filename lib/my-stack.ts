@@ -14,7 +14,7 @@ export class MyStack extends cdk.Stack {
     });
 
     // VPC
-    const vpc = new ec2.Vpc(this, 'MyVpc', { maxAzs: 2 });
+    const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
 
     // EC2 Instance
     new ec2.Instance(this, 'MyInstance', {
@@ -24,5 +24,6 @@ export class MyStack extends cdk.Stack {
       ),
       machineImage: ec2.MachineImage.latestAmazonLinux2(),
     });
+    
   }
 }
