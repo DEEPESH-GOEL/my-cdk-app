@@ -13,7 +13,7 @@ export class S3Stack extends cdk.Stack {
     const { instanceName, environment } = props;
 
     const bucket = new s3.Bucket(this, 'StorageBucket', {
-      bucketName: `${instanceName}-${environment}-storage`,
+      bucketName: `dg-${instanceName}-${environment}-storage`,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
