@@ -16,15 +16,15 @@ export class Ec2Stack extends cdk.Stack {
 
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
 
-    new ec2.Instance(this, 'WebInstance', {
+    const instance = new ec2.Instance(this, 'WebInstance', {
       vpc,
       machineImage: ec2.MachineImage.genericLinux({ [this.region]: ami }),
       instanceType: new ec2.InstanceType(instanceType),
-      tags: {
-        Name:        `${instanceName}-${environment}`,
-        Environment: environment,
-        ManagedBy:   'cdk',
-      },
     });
+
+    // Apply tags separately
+    cdk.Tags.of(instance).add('Name', `${instanceName}-${environment}`);
+    cdk.Tags.of(instance).add('Environment', environment);
+    cdk.Tags.of(instance).add('ManagedBy', 'cdk');
   }
 }
