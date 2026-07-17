@@ -6,12 +6,12 @@ export class MyStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // S3 Bucket
-    //new s3.Bucket(this, 'MyBucket', {
-    //  bucketName: 'dg-app-bucket',
-    //  versioned: true,
-   //   removalPolicy: cdk.RemovalPolicy.DESTROY,
- //   });
+    //S3 Bucket
+    new s3.Bucket(this, 'MyBucket', {
+    bucketName: 'dg-app-bucket',
+    versioned: true,
+   removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
 
     // VPC
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
