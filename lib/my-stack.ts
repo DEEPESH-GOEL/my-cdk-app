@@ -11,7 +11,7 @@ export class MyStack extends cdk.Stack {
     //  bucketName: 'dg-app-bucket',
     //  versioned: true,
    //   removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
+ //   });
 
     // VPC
     const vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
