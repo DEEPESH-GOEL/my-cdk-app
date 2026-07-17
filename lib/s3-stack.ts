@@ -12,14 +12,14 @@ export class S3Stack extends cdk.Stack {
 
     const { instanceName, environment } = props;
 
-    new s3.Bucket(this, 'StorageBucket', {
+    const bucket = new s3.Bucket(this, 'StorageBucket', {
       bucketName: `${instanceName}-${environment}-storage`,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
-      tags: {
-        Name:        `${instanceName}-${environment}-storage`,
-        Environment: environment,
-        ManagedBy:   'cdk',
-      },
     });
+
+    // Apply tags separately
+    cdk.Tags.of(bucket).add('Name', `${instanceName}-${environment}-storage`);
+    cdk.Tags.of(bucket).add('Environment', environment);
+    cdk.Tags.of(bucket).add('ManagedBy', 'cdk');
   }
 }
