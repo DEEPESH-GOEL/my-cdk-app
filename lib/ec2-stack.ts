@@ -55,11 +55,15 @@ export class Ec2Stack extends cdk.Stack {
     new cdk.CfnOutput(this, 'InstanceId', {
       value: instance.instanceId,
     });
-    new cdk.CfnOutput(this, 'KeyPairId', {
-      value: keyPair.keyPairId,
-    });
-    new cdk.CfnOutput(this, 'KeyPairName', {
-      value: keyPair.keyPairName,
-    });
+    new cdk.CfnOutput(this, 'KeyPairName', { value: keyPair.keyPairName });
+    new cdk.CfnOutput(this, 'KeyPairId', { value: 'key-043509c1b11820175' }); // static, known value — not derived from the construct
+
+   
+    //new cdk.CfnOutput(this, 'KeyPairId', {
+      //value: keyPair.keyPairId,
+    //});
+    //new cdk.CfnOutput(this, 'KeyPairName', {
+    //  value: keyPair.keyPairName,
+  //  });
   }
 }
