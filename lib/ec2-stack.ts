@@ -36,7 +36,8 @@ export class Ec2Stack extends cdk.Stack {
  
     const instance = new ec2.Instance(this, 'WebInstance', {
       vpc,
-      machineImage: ec2.MachineImage.genericLinux({ [this.region]: ami }),
+      machineImage: ec2.MachineImage.latestAmazonLinux2(),
+      //machineImage: ec2.MachineImage.genericLinux({ [this.region]: ami }),
       instanceType: new ec2.InstanceType(instanceType),
       securityGroup,
       keyPair,
