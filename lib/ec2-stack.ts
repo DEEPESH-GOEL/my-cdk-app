@@ -26,9 +26,13 @@ export class Ec2Stack extends cdk.Stack {
  
     // Key pair so Harness has SSH access; private key material lands in
     // AWS Systems Manager Parameter Store under /ec2/keypair/<key-pair-id>
-    const keyPair = new ec2.KeyPair(this, 'WebInstanceKeyPair', {
-      keyPairName: `${instanceName}-${environment}-key`,
-    });
+    //const keyPair = new ec2.KeyPair(this, 'WebInstanceKeyPair', {
+    // keyPairName: `${instanceName}-${environment}-key`,
+    // });
+   const keyPair = ec2.KeyPair.fromKeyPairName( this,
+     'WebInstanceKeyPair',
+     'dgwebapp-dev-dev-key'
+   );
  
     const instance = new ec2.Instance(this, 'WebInstance', {
       vpc,
