@@ -15,5 +15,5 @@ const environment  = process.env.environment || app.node.tryGetContext('environm
 const ami          = app.node.tryGetContext('ami')          || 'ami-0c02fb55956c7d316';
 const instanceType = process.env.instanceType || app.node.tryGetContext('instanceType') || 't3.micro';
 
-new Ec2Stack(app, 'Ec2Stack-${environment}', { instanceName, environment, ami, instanceType, env });
-new S3Stack(app, 'S3Stack-${environment}',   { instanceName, environment, env });
+new Ec2Stack(app, 'Ec2Stack${environment}', { instanceName, environment, ami, instanceType, env });
+new S3Stack(app, 'S3Stack${environment}',   { instanceName, environment, env });
