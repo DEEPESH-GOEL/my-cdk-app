@@ -3,13 +3,18 @@
 #
 #   GET {base}/iacm/api/orgs/{org}/projects/{project}/workspaces/{id}/resources
 #
-# `outputs` is a nested object in that response. Each item has name, value
-# (always a string), sensitive, and expression. We reduce it to name -> value.
+# Reads the MAP outputs the producer already exposes -- `vpc_ids` and
+# `vpc_cidrs` -- and pulls this app's entry out of each. No changes needed on
+# the producer side.
+#
+# The wrinkle: every output `value` in that API response is a STRING, so a map
+# output arrives serialised and the encoding is undocumented. The locals below
+# try three decodings in order and surface the raw text if all three miss.
 #
 # Prerequisites on the workspace:
 #   - AWS connector attached
 #   - shared_vpc has completed at least one successful apply
-#   - the five harness_* variables below are set (harness_api_key as a secret)
+#   - the four harness_* variables set (harness_api_key as a secret)
 ###############################################################################
 
 terraform {
@@ -42,7 +47,7 @@ variable "aws_region" {
 }
 
 variable "app_key" {
-  description = "Suffix used to select this app's outputs, e.g. vpc_id_app_b."
+  description = "Key to look up inside the vpc_ids / vpc_cidrs maps."
   type        = string
   default     = "app_b"
 }
@@ -59,12 +64,12 @@ variable "harness_account_id" {
 }
 
 variable "harness_org_id" {
-  description = "Org identifier holding the shared_vpc workspace."
+  description = "Org identifier holding the shared workspace."
   type        = string
 }
 
 variable "harness_project_id" {
-  description = "Project identifier holding the shared_vpc workspace."
+  description = "Project identifier holding the shared workspace."
   type        = string
 }
 
@@ -74,6 +79,18 @@ variable "shared_workspace_id" {
   default     = "shared_vpc"
 }
 
+variable "vpc_ids_output_name" {
+  description = "Name of the producer's map-of-ids output."
+  type        = string
+  default     = "vpc_ids"
+}
+
+variable "vpc_cidrs_output_name" {
+  description = "Name of the producer's map-of-cidrs output."
+  type        = string
+  default     = "vpc_cidrs"
+}
+
 variable "harness_api_key" {
   description = "Harness PAT or service account token. Sent as x-api-key."
   type        = string
@@ -81,7 +98,7 @@ variable "harness_api_key" {
 }
 
 variable "api_page_limit" {
-  description = "Page size. Raised from the default because outputs ride along with the resource inventory."
+  description = "Page size. Outputs ride along with the resource inventory, so keep this generous."
   type        = number
   default     = 200
 }
@@ -91,8 +108,7 @@ variable "api_page_limit" {
 #
 # The postcondition is not optional. `data "http"` does not fail on a non-2xx --
 # it returns the error body and lets jsondecode fail later with a character
-# offset, which points you at the wrong layer entirely. Asserting the status
-# turns a 401 into a message that names the status and the body.
+# offset, pointing you at the wrong layer entirely.
 ###############################################################################
 
 data "http" "shared_workspace" {
@@ -112,22 +128,51 @@ data "http" "shared_workspace" {
   }
 }
 
+###############################################################################
+# Decode
+###############################################################################
+
 locals {
   api = jsondecode(data.http.shared_workspace.response_body)
 
-  # name -> value, sensitive outputs dropped.
+  # name -> value (still a string at this point). Sensitive outputs dropped.
   shared_outputs = {
     for o in try(local.api.outputs, []) : o.name => o.value
     if try(o.sensitive, false) == false
   }
 
-  vpc_id_key   = "vpc_id_${var.app_key}"
-  vpc_cidr_key = "vpc_cidr_${var.app_key}"
+  raw_ids   = try(local.shared_outputs[var.vpc_ids_output_name], null)
+  raw_cidrs = try(local.shared_outputs[var.vpc_cidrs_output_name], null)
 
-  # try() rather than a bare index so a missing key reaches the precondition
-  # below instead of blowing up with "key not found" and no context.
-  vpc_id   = try(local.shared_outputs[local.vpc_id_key], null)
-  vpc_cidr = try(local.shared_outputs[local.vpc_cidr_key], null)
+  # Attempt 1 -- the value is already a real map (in case the API stops
+  # stringifying complex values in some future version).
+  ids_as_map   = try(tomap({ for k, v in local.raw_ids : k => tostring(v) }), null)
+  cidrs_as_map = try(tomap({ for k, v in local.raw_cidrs : k => tostring(v) }), null)
+
+  # Attempt 2 -- the value is a JSON object encoded as a string, i.e.
+  # {"app_a":"vpc-aaa","app_b":"vpc-bbb"}
+  ids_from_json   = try(tomap({ for k, v in jsondecode(local.raw_ids) : k => tostring(v) }), null)
+  cidrs_from_json = try(tomap({ for k, v in jsondecode(local.raw_cidrs) : k => tostring(v) }), null)
+
+  # Attempt 3 -- anything else key/value shaped: HCL rendering with `=`,
+  # Go's map[k:v k:v], quoted or bare. Matches key <sep> value pairs.
+  kv_pattern = "\"?([A-Za-z0-9_.-]+)\"?[[:space:]]*[:=][[:space:]]*\"?([^\",}\\][:space:]]+)\"?"
+
+  # try() wraps these because locals are evaluated eagerly -- without it,
+  # tostring() on an already-decoded object aborts the plan even when attempt 1
+  # already succeeded.
+  ids_from_regex = try(tomap({
+    for m in regexall(local.kv_pattern, tostring(local.raw_ids)) : m[0] => m[1]
+  }), null)
+  cidrs_from_regex = try(tomap({
+    for m in regexall(local.kv_pattern, tostring(local.raw_cidrs)) : m[0] => m[1]
+  }), null)
+
+  vpc_ids   = coalesce(local.ids_as_map, local.ids_from_json, local.ids_from_regex, tomap({}))
+  vpc_cidrs = coalesce(local.cidrs_as_map, local.cidrs_from_json, local.cidrs_from_regex, tomap({}))
+
+  vpc_id   = try(local.vpc_ids[var.app_key], null)
+  vpc_cidr = try(local.vpc_cidrs[var.app_key], null)
 }
 
 ###############################################################################
@@ -149,9 +194,14 @@ resource "aws_subnet" "app" {
     precondition {
       condition = local.vpc_id != null && local.vpc_cidr != null
       error_message = join("", [
-        "Could not find '${local.vpc_id_key}' and '${local.vpc_cidr_key}' in ",
-        "workspace '${var.shared_workspace_id}'. Outputs the API returned: ",
-        length(local.shared_outputs) == 0 ? "(none -- has shared_vpc applied yet?)" : join(", ", sort(keys(local.shared_outputs))),
+        "Could not resolve key '${var.app_key}' from '${var.vpc_ids_output_name}' / '${var.vpc_cidrs_output_name}' ",
+        "in workspace '${var.shared_workspace_id}'. ",
+        length(local.shared_outputs) == 0
+        ? "The API returned no outputs at all -- has the producer applied yet?"
+        : "Outputs present: ${join(", ", sort(keys(local.shared_outputs)))}. ",
+        local.raw_ids == null
+        ? ""
+        : "Parsed keys from ${var.vpc_ids_output_name}: [${join(", ", sort(keys(local.vpc_ids)))}]. Raw value was: ${jsonencode(local.raw_ids)}",
       ])
     }
   }
@@ -162,12 +212,27 @@ resource "aws_subnet" "app" {
 ###############################################################################
 
 output "resolved_vpc_id" {
-  description = "Proof the API read resolved. Renders at plan time."
+  description = "Proof the API read and the decode both worked. Renders at plan time."
   value       = local.vpc_id
 }
 
+output "resolved_vpc_cidr" {
+  description = "CIDR pulled out of the producer's vpc_cidrs map."
+  value       = local.vpc_cidr
+}
+
+output "parsed_vpc_ids" {
+  description = "The whole decoded map. Check this first if a key lookup fails."
+  value       = local.vpc_ids
+}
+
+output "raw_vpc_ids_value" {
+  description = "Exactly what the API returned for vpc_ids, before decoding. Paste this if the parsers miss."
+  value       = jsonencode(local.raw_ids)
+}
+
 output "available_output_names" {
-  description = "Non-sensitive output names the API exposed. Check here first when a lookup fails."
+  description = "Non-sensitive output names the API exposed."
   value       = sort(keys(local.shared_outputs))
 }
 
