@@ -16,7 +16,13 @@ terraform {
 provider "aws" {
   region = var.aws_region
 }
- 
+
+removed {
+  from = data.http.shared_workspace
+  lifecycle {
+    destroy = false
+  }
+}
 # Intentionally empty. See the header.
 provider "harness" {}
  
