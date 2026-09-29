@@ -74,6 +74,11 @@ variable "app_key" {
   type        = string
   default     = "app_b"
 }
+variable "pat_key" {
+  description = "Key to look up inside the vpc_ids idrs maps."
+  type        = string
+  default     = "app_b"
+}
 
 variable "harness_org_id" {
   description = "Org identifier holding the shared workspace."
@@ -115,6 +120,7 @@ data "harness_platform_workspace_output" "shared" {
   identifier = var.shared_workspace_id
   org_id     = var.harness_org_id
   project_id = var.harness_project_id
+  platform_api_key = var.pat_key
 }
 
 # CAVEAT that Path B does not remove.
